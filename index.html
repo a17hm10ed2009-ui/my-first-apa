@@ -1,0 +1,1115 @@
+========================================
+FILE: android_app/settings.gradle
+========================================
+include ':app'
+rootProject.name = "ParentalControl"
+
+========================================
+FILE: android_app/build.gradle
+========================================
+buildscript {
+    repositories { google(); mavenCentral() }
+    dependencies {
+        classpath "com.android.tools.build:gradle:8.4.0"
+        classpath "org.jetbrains.kotlin:kotlin-gradle-plugin:1.9.24"
+    }
+}
+
+allprojects {
+    repositories { google(); mavenCentral() }
+}
+
+========================================
+FILE: android_app/app/build.gradle
+========================================
+plugins {
+    id 'com.android.application'
+    id 'org.jetbrains.kotlin.android'
+}
+
+android {
+    namespace 'com.example.parentalcontrol'
+    compileSdk 34
+
+    defaultConfig {
+        applicationId "com.example.parentalcontrol"
+        minSdk 26
+        targetSdk 34
+        versionCode 1
+        versionName "1.0"
+    }
+
+    buildTypes {
+        release {
+            minifyEnabled false
+        }
+    }
+
+    compileOptions {
+        sourceCompatibility JavaVersion.VERSION_1_8
+        targetCompatibility JavaVersion.VERSION_1_8
+    }
+
+    kotlinOptions {
+        jvmTarget = '1.8'
+    }
+}
+
+dependencies {
+    implementation 'androidx.core:core-ktx:1.13.1'
+    implementation 'androidx.appcompat:appcompat:1.7.0'
+    implementation 'com.google.android.material:material:1.12.0'
+    implementation 'androidx.work:work-runtime-ktx:2.9.0'
+    implementation 'com.squareup.okhttp3:okhttp:4.12.0'
+    implementation 'org.json:json:20240303'
+}
+
+========================================
+FILE: android_app/app/src/main/AndroidManifest.xml
+========================================
+<?xml version="1.0" encoding="utf-8"?>
+<manifest xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:tools="http://schemas.android.com/tools">
+
+    <uses-permission android:name="android.permission.INTERNET" />
+    <uses-permission android:name="android.permission.ACCESS_NETWORK_STATE" />
+    <uses-permission android:name="android.permission.READ_CALL_LOG" />
+    <uses-permission android:name="android.permission.PACKAGE_USAGE_STATS"
+        tools:ignore="ProtectedPermissions" />
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE" />
+    <uses-permission android:name="android.permission.RECEIVE_BOOT_COMPLETED" />
+
+    <application
+        android:allowBackup="false"
+        android:icon="@mipmap/ic_launcher"
+        android:label="@string/app_name"
+        android:theme="@style/Theme.Material3.DayNight">
+
+        <activity
+            android:name=".MainActivity"
+            android:exported="true">
+            <intent-filter>
+                <action android:name="android.intent.action.MAIN" />
+                <category android:name="android.intent.category.LAUNCHER" />
+            </intent-filter>
+        </activity>
+
+        <service
+            android:name=".BrowserMonitorService"
+            android:permission="android.permission.BIND_ACCESSIBILITY_SERVICE"
+            android:exported="false">
+            <intent-filter>
+                <action android:name="android.accessibilityservice.AccessibilityService" />
+            </intent-filter>
+            <meta-data
+                android:name="android.accessibilityservice"
+                android:resource="@xml/accessibility_service_config" />
+        </service>
+
+    </application>
+</manifest>
+
+========================================
+FILE: android_app/app/src/main/res/values/strings.xml
+========================================
+<resources>
+    <string name="app_name">Parental Control</string>
+    <string name="accessibility_service_description">يراقب عناوين المواقع المفتوحة في المتصفح لتقرير الرقابة الأبوية.</string>
+</resources>
+
+========================================
+FILE: android_app/app/src/main/res/xml/accessibility_service_config.xml
+========================================
+<?xml version="1.0" encoding="utf-8"?>
+<accessibility-service xmlns:android="http://schemas.android.com/apk/res/android"
+    android:accessibilityEventTypes="typeWindowStateChanged|typeWindowContentChanged"
+    android:accessibilityFeedbackType="feedbackGeneric"
+    android:accessibilityFlags="flagDefault|flagRetrieveInteractiveWindows"
+    android:canRetrieveWindowContent="true"
+    android:description="@string/accessibility_service_description"
+    android:notificationTimeout="200"
+    android:packageNames="com.android.chrome,com.sec.android.app.sbrowser,org.mozilla.firefox,com.opera.browser,com.microsoft.emmx" />
+
+========================================
+FILE: android_app/app/src/main/res/layout/activity_main.xml
+========================================
+<?xml version="1.0" encoding="utf-8"?>
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent"
+    android:orientation="vertical"
+    android:padding="24dp"
+    android:gravity="center_horizontal">
+
+    <TextView
+        android:id="@+id/statusText"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:textSize="15sp"
+        android:layout_marginBottom="20dp"
+        android:text="أدخل كود الاقتران المُعطى من ولي الأمر" />
+
+    <EditText
+        android:id="@+id/pairingCodeInput"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:inputType="number"
+        android:hint="كود الاقتران (6 أرقام)" />
+
+    <Button
+        android:id="@+id/pairButton"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:layout_marginTop="12dp"
+        android:text="ربط الجهاز" />
+
+    <Button
+        android:id="@+id/accessibilityButton"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:layout_marginTop="24dp"
+        android:text="تفعيل صلاحية مراقبة المتصفح" />
+
+    <Button
+        android:id="@+id/usageAccessButton"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:layout_marginTop="12dp"
+        android:text="تفعيل صلاحية استخدام التطبيقات" />
+
+    <Button
+        android:id="@+id/callLogPermButton"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:layout_marginTop="12dp"
+        android:text="السماح بقراءة سجل المكالمات" />
+
+</LinearLayout>
+
+========================================
+FILE: android_app/app/src/main/java/com/example/parentalcontrol/MainActivity.kt
+========================================
+package com.example.parentalcontrol
+
+import android.Manifest
+import android.app.AppOpsManager
+import android.content.Context
+import android.content.Intent
+import android.content.pm.PackageManager
+import android.os.Bundle
+import android.os.Process
+import android.provider.Settings
+import android.widget.Button
+import android.widget.EditText
+import android.widget.TextView
+import android.widget.Toast
+import androidx.appcompat.app.AppCompatActivity
+import androidx.core.app.ActivityCompat
+import androidx.core.content.ContextCompat
+import androidx.work.PeriodicWorkRequestBuilder
+import androidx.work.WorkManager
+import okhttp3.MediaType.Companion.toMediaType
+import okhttp3.OkHttpClient
+import okhttp3.Request
+import okhttp3.RequestBody.Companion.toRequestBody
+import org.json.JSONObject
+import java.util.concurrent.TimeUnit
+
+class MainActivity : AppCompatActivity() {
+
+    private lateinit var prefs: android.content.SharedPreferences
+    private val client = OkHttpClient()
+    private val pairUrl = "https://YOUR_SERVER_URL/api/devices/pair"
+
+    override fun onCreate(savedInstanceState: Bundle?) {
+        super.onCreate(savedInstanceState)
+        setContentView(R.layout.activity_main)
+
+        prefs = getSharedPreferences("parental_control_prefs", Context.MODE_PRIVATE)
+
+        val statusText = findViewById<TextView>(R.id.statusText)
+        val pairingInput = findViewById<EditText>(R.id.pairingCodeInput)
+
+        val existingDeviceId = prefs.getString("device_id", null)
+        if (existingDeviceId != null) {
+            statusText.text = "الجهاز مرتبط بالفعل ✅"
+            pairingInput.isEnabled = false
+        }
+
+        findViewById<Button>(R.id.pairButton).setOnClickListener {
+            val code = pairingInput.text.toString().trim()
+            if (code.length != 6) {
+                Toast.makeText(this, "أدخل كود مكوّن من 6 أرقام", Toast.LENGTH_SHORT).show()
+                return@setOnClickListener
+            }
+            pairDevice(code, statusText)
+        }
+
+        findViewById<Button>(R.id.accessibilityButton).setOnClickListener {
+            startActivity(Intent(Settings.ACTION_ACCESSIBILITY_SETTINGS))
+        }
+
+        findViewById<Button>(R.id.usageAccessButton).setOnClickListener {
+            if (!hasUsageAccess()) {
+                startActivity(Intent(Settings.ACTION_USAGE_ACCESS_SETTINGS))
+            } else {
+                Toast.makeText(this, "الصلاحية مفعّلة بالفعل", Toast.LENGTH_SHORT).show()
+            }
+        }
+
+        findViewById<Button>(R.id.callLogPermButton).setOnClickListener {
+            if (ContextCompat.checkSelfPermission(this, Manifest.permission.READ_CALL_LOG)
+                != PackageManager.PERMISSION_GRANTED
+            ) {
+                ActivityCompat.requestPermissions(
+                    this, arrayOf(Manifest.permission.READ_CALL_LOG), 1001
+                )
+            } else {
+                Toast.makeText(this, "الصلاحية مفعّلة بالفعل", Toast.LENGTH_SHORT).show()
+            }
+        }
+
+        schedulePeriodicSync()
+    }
+
+    private fun pairDevice(code: String, statusText: TextView) {
+        val json = JSONObject().apply { put("pairing_code", code) }
+        val body = json.toString().toRequestBody("application/json".toMediaType())
+        val request = Request.Builder().url(pairUrl).post(body).build()
+
+        client.newCall(request).enqueue(object : okhttp3.Callback {
+            override fun onFailure(call: okhttp3.Call, e: java.io.IOException) {
+                runOnUiThread {
+                    Toast.makeText(this@MainActivity, "تعذر الاتصال بالسيرفر", Toast.LENGTH_SHORT).show()
+                }
+            }
+
+            override fun onResponse(call: okhttp3.Call, response: okhttp3.Response) {
+                val respBody = response.body?.string()
+                runOnUiThread {
+                    if (response.isSuccessful && respBody != null) {
+                        val deviceId = JSONObject(respBody).optString("device_id", null)
+                        if (deviceId != null) {
+                            prefs.edit().putString("device_id", deviceId).apply()
+                            statusText.text = "تم الاقتران بنجاح ✅"
+                            Toast.makeText(this@MainActivity, "تم الربط", Toast.LENGTH_SHORT).show()
+                        }
+                    } else {
+                        Toast.makeText(this@MainActivity, "كود غير صالح أو منتهي", Toast.LENGTH_SHORT).show()
+                    }
+                }
+            }
+        })
+    }
+
+    private fun hasUsageAccess(): Boolean {
+        val appOps = getSystemService(Context.APP_OPS_SERVICE) as AppOpsManager
+        val mode = appOps.checkOpNoThrow(
+            AppOpsManager.OPSTR_GET_USAGE_STATS, Process.myUid(), packageName
+        )
+        return mode == AppOpsManager.MODE_ALLOWED
+    }
+
+    private fun schedulePeriodicSync() {
+        val callRequest = PeriodicWorkRequestBuilder<CallLogSyncWorker>(1, TimeUnit.HOURS).build()
+        val usageRequest = PeriodicWorkRequestBuilder<AppUsageSyncWorker>(6, TimeUnit.HOURS).build()
+
+        WorkManager.getInstance(this).enqueue(callRequest)
+        WorkManager.getInstance(this).enqueue(usageRequest)
+    }
+}
+
+========================================
+FILE: android_app/app/src/main/java/com/example/parentalcontrol/BrowserMonitorService.kt
+========================================
+package com.example.parentalcontrol
+
+import android.accessibilityservice.AccessibilityService
+import android.view.accessibility.AccessibilityEvent
+import android.view.accessibility.AccessibilityNodeInfo
+import okhttp3.*
+import okhttp3.MediaType.Companion.toMediaType
+import okhttp3.RequestBody.Companion.toRequestBody
+import org.json.JSONObject
+import java.io.IOException
+import java.text.SimpleDateFormat
+import java.util.*
+
+class BrowserMonitorService : AccessibilityService() {
+
+    private val client = OkHttpClient()
+    private val serverUrl = "https://YOUR_SERVER_URL/api/log"
+
+    private val supportedBrowsers = setOf(
+        "com.android.chrome",
+        "com.sec.android.app.sbrowser",
+        "org.mozilla.firefox",
+        "com.opera.browser",
+        "com.microsoft.emmx"
+    )
+
+    override fun onAccessibilityEvent(event: AccessibilityEvent?) {
+        if (event == null) return
+        val packageName = event.packageName?.toString() ?: return
+
+        if (packageName !in supportedBrowsers) return
+
+        if (event.eventType == AccessibilityEvent.TYPE_WINDOW_CONTENT_CHANGED ||
+            event.eventType == AccessibilityEvent.TYPE_WINDOW_STATE_CHANGED) {
+
+            val rootNode = rootInActiveWindow ?: return
+            val url = extractUrlFromNode(rootNode)
+            rootNode.recycle()
+
+            if (!url.isNullOrBlank()) {
+                sendLogToServer(packageName, url)
+            }
+        }
+    }
+
+    private fun extractUrlFromNode(node: AccessibilityNodeInfo): String? {
+        val urlBarIds = listOf(
+            "com.android.chrome:id/url_bar",
+            "com.sec.android.app.sbrowser:id/location_bar_edit_text"
+        )
+        for (id in urlBarIds) {
+            val nodes = node.findAccessibilityNodeInfosByViewId(id)
+            if (nodes.isNotEmpty()) {
+                val text = nodes[0].text?.toString()
+                nodes.forEach { it.recycle() }
+                if (!text.isNullOrBlank()) return text
+            }
+        }
+        return null
+    }
+
+    private fun sendLogToServer(appPackage: String, url: String) {
+        val timestamp = SimpleDateFormat("yyyy-MM-dd'T'HH:mm:ss", Locale.US).format(Date())
+
+        val json = JSONObject().apply {
+            put("device_id", getDeviceId())
+            put("app_package", appPackage)
+            put("url", url)
+            put("timestamp", timestamp)
+        }
+
+        val body = json.toString().toRequestBody("application/json".toMediaType())
+        val request = Request.Builder()
+            .url(serverUrl)
+            .post(body)
+            .build()
+
+        client.newCall(request).enqueue(object : Callback {
+            override fun onFailure(call: Call, e: IOException) {}
+            override fun onResponse(call: Call, response: Response) {
+                response.close()
+            }
+        })
+    }
+
+    private fun getDeviceId(): String {
+        return android.provider.Settings.Secure.getString(
+            contentResolver, android.provider.Settings.Secure.ANDROID_ID
+        )
+    }
+
+    override fun onInterrupt() {}
+}
+
+========================================
+FILE: android_app/app/src/main/java/com/example/parentalcontrol/CallLogSync.kt
+========================================
+package com.example.parentalcontrol
+
+import android.content.Context
+import android.database.Cursor
+import android.provider.CallLog
+import okhttp3.MediaType.Companion.toMediaType
+import okhttp3.OkHttpClient
+import okhttp3.Request
+import okhttp3.RequestBody.Companion.toRequestBody
+import org.json.JSONArray
+import org.json.JSONObject
+import java.text.SimpleDateFormat
+import java.util.*
+
+class CallLogSync(private val context: Context) {
+
+    private val client = OkHttpClient()
+    private val serverUrl = "https://YOUR_SERVER_URL/api/calls/sync"
+    private val prefs = context.getSharedPreferences("parental_control_prefs", Context.MODE_PRIVATE)
+
+    fun syncRecentCalls() {
+        val deviceId = prefs.getString("device_id", null) ?: return
+        val lastSyncedTimestamp = prefs.getLong("last_call_sync_ts", 0L)
+
+        val calls = JSONArray()
+        var maxTimestamp = lastSyncedTimestamp
+
+        val cursor: Cursor? = context.contentResolver.query(
+            CallLog.Calls.CONTENT_URI,
+            arrayOf(
+                CallLog.Calls.NUMBER,
+                CallLog.Calls.CACHED_NAME,
+                CallLog.Calls.TYPE,
+                CallLog.Calls.DURATION,
+                CallLog.Calls.DATE
+            ),
+            "${CallLog.Calls.DATE} > ?",
+            arrayOf(lastSyncedTimestamp.toString()),
+            "${CallLog.Calls.DATE} ASC"
+        )
+
+        cursor?.use {
+            val numberIdx = it.getColumnIndex(CallLog.Calls.NUMBER)
+            val nameIdx = it.getColumnIndex(CallLog.Calls.CACHED_NAME)
+            val typeIdx = it.getColumnIndex(CallLog.Calls.TYPE)
+            val durationIdx = it.getColumnIndex(CallLog.Calls.DURATION)
+            val dateIdx = it.getColumnIndex(CallLog.Calls.DATE)
+
+            while (it.moveToNext()) {
+                val number = it.getString(numberIdx) ?: "unknown"
+                val name = it.getString(nameIdx)
+                val type = callTypeToString(it.getInt(typeIdx))
+                val duration = it.getInt(durationIdx)
+                val dateMillis = it.getLong(dateIdx)
+
+                val iso = SimpleDateFormat("yyyy-MM-dd'T'HH:mm:ss", Locale.US).format(Date(dateMillis))
+
+                val obj = JSONObject().apply {
+                    put("phone_number", number)
+                    put("contact_name", name ?: JSONObject.NULL)
+                    put("call_type", type)
+                    put("duration_seconds", duration)
+                    put("timestamp", iso)
+                }
+                calls.put(obj)
+                if (dateMillis > maxTimestamp) maxTimestamp = dateMillis
+            }
+        }
+
+        if (calls.length() == 0) return
+
+        val payload = JSONObject().apply {
+            put("device_id", deviceId)
+            put("calls", calls)
+        }
+
+        val body = payload.toString().toRequestBody("application/json".toMediaType())
+        val request = Request.Builder().url(serverUrl).post(body).build()
+
+        try {
+            client.newCall(request).execute().use { response ->
+                if (response.isSuccessful) {
+                    prefs.edit().putLong("last_call_sync_ts", maxTimestamp).apply()
+                }
+            }
+        } catch (e: Exception) {
+        }
+    }
+
+    private fun callTypeToString(type: Int): String = when (type) {
+        CallLog.Calls.INCOMING_TYPE -> "incoming"
+        CallLog.Calls.OUTGOING_TYPE -> "outgoing"
+        CallLog.Calls.MISSED_TYPE -> "missed"
+        CallLog.Calls.REJECTED_TYPE -> "rejected"
+        else -> "unknown"
+    }
+}
+
+========================================
+FILE: android_app/app/src/main/java/com/example/parentalcontrol/CallLogSyncWorker.kt
+========================================
+package com.example.parentalcontrol
+
+import android.content.Context
+import androidx.work.Worker
+import androidx.work.WorkerParameters
+
+class CallLogSyncWorker(context: Context, params: WorkerParameters) : Worker(context, params) {
+    override fun doWork(): Result {
+        CallLogSync(applicationContext).syncRecentCalls()
+        return Result.success()
+    }
+}
+
+========================================
+FILE: android_app/app/src/main/java/com/example/parentalcontrol/AppUsageSync.kt
+========================================
+package com.example.parentalcontrol
+
+import android.app.usage.UsageStatsManager
+import android.content.Context
+import android.content.pm.PackageManager
+import okhttp3.MediaType.Companion.toMediaType
+import okhttp3.OkHttpClient
+import okhttp3.Request
+import okhttp3.RequestBody.Companion.toRequestBody
+import org.json.JSONArray
+import org.json.JSONObject
+import java.text.SimpleDateFormat
+import java.util.*
+
+class AppUsageSync(private val context: Context) {
+
+    private val client = OkHttpClient()
+    private val serverUrl = "https://YOUR_SERVER_URL/api/usage/sync"
+    private val prefs = context.getSharedPreferences("parental_control_prefs", Context.MODE_PRIVATE)
+
+    fun syncTodayUsage() {
+        val deviceId = prefs.getString("device_id", null) ?: return
+
+        val usageStatsManager = context.getSystemService(Context.USAGE_STATS_SERVICE) as UsageStatsManager
+        val calendar = Calendar.getInstance()
+        calendar.set(Calendar.HOUR_OF_DAY, 0)
+        calendar.set(Calendar.MINUTE, 0)
+        calendar.set(Calendar.SECOND, 0)
+        val startOfDay = calendar.timeInMillis
+        val now = System.currentTimeMillis()
+
+        val statsList = usageStatsManager.queryUsageStats(
+            UsageStatsManager.INTERVAL_DAILY, startOfDay, now
+        )
+
+        if (statsList.isNullOrEmpty()) return
+
+        val dateStr = SimpleDateFormat("yyyy-MM-dd", Locale.US).format(Date(startOfDay))
+        val pm = context.packageManager
+        val usageArray = JSONArray()
+
+        for (stat in statsList) {
+            val minutes = stat.totalTimeInForeground / 1000 / 60
+            if (minutes <= 0) continue
+
+            val appName = try {
+                pm.getApplicationLabel(pm.getApplicationInfo(stat.packageName, PackageManager.GET_META_DATA)).toString()
+            } catch (e: PackageManager.NameNotFoundException) {
+                stat.packageName
+            }
+
+            val obj = JSONObject().apply {
+                put("app_package", stat.packageName)
+                put("app_name", appName)
+                put("usage_minutes", minutes)
+                put("usage_date", dateStr)
+            }
+            usageArray.put(obj)
+        }
+
+        if (usageArray.length() == 0) return
+
+        val payload = JSONObject().apply {
+            put("device_id", deviceId)
+            put("usage", usageArray)
+        }
+
+        val body = payload.toString().toRequestBody("application/json".toMediaType())
+        val request = Request.Builder().url(serverUrl).post(body).build()
+
+        client.newCall(request).enqueue(object : okhttp3.Callback {
+            override fun onFailure(call: okhttp3.Call, e: java.io.IOException) {}
+            override fun onResponse(call: okhttp3.Call, response: okhttp3.Response) {
+                response.close()
+            }
+        })
+    }
+}
+
+========================================
+FILE: android_app/app/src/main/java/com/example/parentalcontrol/AppUsageSyncWorker.kt
+========================================
+package com.example.parentalcontrol
+
+import android.content.Context
+import androidx.work.Worker
+import androidx.work.WorkerParameters
+
+class AppUsageSyncWorker(context: Context, params: WorkerParameters) : Worker(context, params) {
+    override fun doWork(): Result {
+        AppUsageSync(applicationContext).syncTodayUsage()
+        return Result.success()
+    }
+}
+
+========================================
+FILE: android_app/app/proguard-rules.pro
+========================================
+# لا توجد قواعد خاصة مطلوبة حاليًا
+
+========================================
+FILE: android_app/gradle/wrapper/gradle-wrapper.properties
+========================================
+distributionBase=GRADLE_USER_HOME
+distributionPath=wrapper/dists
+distributionUrl=https\://services.gradle.org/distributions/gradle-8.6-bin.zip
+zipStoreBase=GRADLE_USER_HOME
+zipStorePath=wrapper/dists
+
+========================================
+FILE: android_app/gradlew
+========================================
+#!/bin/sh
+DIR="$(cd "$(dirname "$0")" && pwd)"
+CLASSPATH="$DIR/gradle/wrapper/gradle-wrapper.jar"
+exec java -cp "$CLASSPATH" org.gradle.wrapper.GradleWrapperMain "$@"
+
+========================================
+FILE: android_app/gradlew.bat
+========================================
+@echo off
+set DIR=%~dp0
+java -cp "%DIR%\gradle\wrapper\gradle-wrapper.jar" org.gradle.wrapper.GradleWrapperMain %*
+
+========================================
+FILE: android_app/build.sh
+========================================
+#!/bin/sh
+./gradlew assembleDebug
+echo "APK: app/build/outputs/apk/debug/app-debug.apk"
+
+========================================
+FILE: server/package.json
+========================================
+{
+  "name": "parental-control-server",
+  "version": "1.0.0",
+  "description": "سيرفر لاستقبال وتخزين بيانات تطبيق الرقابة الأبوية",
+  "main": "server.js",
+  "scripts": {
+    "start": "node server.js"
+  },
+  "dependencies": {
+    "express": "^4.19.2",
+    "better-sqlite3": "^11.3.0",
+    "jsonwebtoken": "^9.0.2",
+    "bcryptjs": "^2.4.3",
+    "cors": "^2.8.5",
+    "dotenv": "^16.4.5"
+  }
+}
+
+========================================
+FILE: server/server.js
+========================================
+require("dotenv").config();
+const express = require("express");
+const cors = require("cors");
+
+const { router: authRouter } = require("./routes/auth");
+const devicesRouter = require("./routes/devices");
+const logsRouter = require("./routes/logs");
+const callsRouter = require("./routes/calls");
+const usageRouter = require("./routes/usage");
+
+const app = express();
+app.use(cors());
+app.use(express.json());
+
+app.use("/api/auth", authRouter);
+app.use("/api/devices", devicesRouter);
+app.use("/api", logsRouter);
+app.use("/api", callsRouter);
+app.use("/api", usageRouter);
+
+app.get("/", (req, res) => {
+  res.json({ status: "parental-control-server يعمل ✅" });
+});
+
+const PORT = process.env.PORT || 3000;
+app.listen(PORT, () => {
+  console.log(`السيرفر يعمل على المنفذ ${PORT}`);
+});
+
+========================================
+FILE: server/db/database.js
+========================================
+const Database = require("better-sqlite3");
+const path = require("path");
+
+const db = new Database(path.join(__dirname, "parental_control.db"));
+
+db.pragma("journal_mode = WAL");
+
+db.exec(`
+  CREATE TABLE IF NOT EXISTS parents (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    email TEXT UNIQUE NOT NULL,
+    password_hash TEXT NOT NULL,
+    created_at TEXT DEFAULT CURRENT_TIMESTAMP
+  )
+`);
+
+db.exec(`
+  CREATE TABLE IF NOT EXISTS devices (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    parent_id INTEGER NOT NULL,
+    device_id TEXT UNIQUE NOT NULL,
+    device_name TEXT,
+    pairing_code TEXT,
+    paired INTEGER DEFAULT 0,
+    created_at TEXT DEFAULT CURRENT_TIMESTAMP,
+    FOREIGN KEY (parent_id) REFERENCES parents(id)
+  )
+`);
+
+db.exec(`
+  CREATE TABLE IF NOT EXISTS browsing_logs (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    device_id TEXT NOT NULL,
+    app_package TEXT,
+    url TEXT,
+    flagged INTEGER DEFAULT 0,
+    timestamp TEXT NOT NULL,
+    FOREIGN KEY (device_id) REFERENCES devices(device_id)
+  )
+`);
+
+db.exec(`
+  CREATE TABLE IF NOT EXISTS call_logs (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    device_id TEXT NOT NULL,
+    phone_number TEXT NOT NULL,
+    contact_name TEXT,
+    call_type TEXT,
+    duration_seconds INTEGER DEFAULT 0,
+    timestamp TEXT NOT NULL,
+    FOREIGN KEY (device_id) REFERENCES devices(device_id)
+  )
+`);
+
+db.exec(`
+  CREATE TABLE IF NOT EXISTS app_usage (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    device_id TEXT NOT NULL,
+    app_package TEXT NOT NULL,
+    app_name TEXT,
+    usage_minutes INTEGER DEFAULT 0,
+    usage_date TEXT NOT NULL,
+    FOREIGN KEY (device_id) REFERENCES devices(device_id),
+    UNIQUE(device_id, app_package, usage_date)
+  )
+`);
+
+db.exec(`
+  CREATE TABLE IF NOT EXISTS blocked_apps (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    device_id TEXT NOT NULL,
+    app_package TEXT NOT NULL,
+    added_at TEXT DEFAULT CURRENT_TIMESTAMP,
+    FOREIGN KEY (device_id) REFERENCES devices(device_id),
+    UNIQUE(device_id, app_package)
+  )
+`);
+
+const FLAGGED_KEYWORDS = ["porn", "bet", "casino", "drugs"];
+
+function isFlagged(url) {
+  const lower = url.toLowerCase();
+  return FLAGGED_KEYWORDS.some((kw) => lower.includes(kw)) ? 1 : 0;
+}
+
+module.exports = { db, isFlagged };
+
+========================================
+FILE: server/routes/auth.js
+========================================
+const express = require("express");
+const bcrypt = require("bcryptjs");
+const jwt = require("jsonwebtoken");
+const { db } = require("../db/database");
+
+const router = express.Router();
+const JWT_SECRET = process.env.JWT_SECRET || "change_this_secret_in_production";
+
+router.post("/register", async (req, res) => {
+  const { email, password } = req.body;
+  if (!email || !password) {
+    return res.status(400).json({ error: "البريد وكلمة المرور مطلوبان" });
+  }
+
+  const existing = db.prepare("SELECT id FROM parents WHERE email = ?").get(email);
+  if (existing) {
+    return res.status(409).json({ error: "هذا البريد مسجل بالفعل" });
+  }
+
+  const hash = await bcrypt.hash(password, 10);
+  const result = db
+    .prepare("INSERT INTO parents (email, password_hash) VALUES (?, ?)")
+    .run(email, hash);
+
+  const token = jwt.sign({ parentId: result.lastInsertRowid }, JWT_SECRET, {
+    expiresIn: "30d",
+  });
+
+  res.status(201).json({ token });
+});
+
+router.post("/login", async (req, res) => {
+  const { email, password } = req.body;
+  const parent = db.prepare("SELECT * FROM parents WHERE email = ?").get(email);
+
+  if (!parent) {
+    return res.status(401).json({ error: "بيانات الدخول غير صحيحة" });
+  }
+
+  const match = await bcrypt.compare(password, parent.password_hash);
+  if (!match) {
+    return res.status(401).json({ error: "بيانات الدخول غير صحيحة" });
+  }
+
+  const token = jwt.sign({ parentId: parent.id }, JWT_SECRET, { expiresIn: "30d" });
+  res.json({ token });
+});
+
+function authMiddleware(req, res, next) {
+  const header = req.headers.authorization;
+  if (!header) return res.status(401).json({ error: "التوثيق مطلوب" });
+
+  const token = header.replace("Bearer ", "");
+  try {
+    const payload = jwt.verify(token, JWT_SECRET);
+    req.parentId = payload.parentId;
+    next();
+  } catch (e) {
+    res.status(401).json({ error: "جلسة غير صالحة" });
+  }
+}
+
+module.exports = { router, authMiddleware };
+
+========================================
+FILE: server/routes/devices.js
+========================================
+const express = require("express");
+const crypto = require("crypto");
+const { db } = require("../db/database");
+const { authMiddleware } = require("./auth");
+
+const router = express.Router();
+
+router.post("/generate-pairing-code", authMiddleware, (req, res) => {
+  const { device_name } = req.body;
+  const pairingCode = crypto.randomInt(100000, 999999).toString();
+  const deviceId = crypto.randomUUID();
+
+  db.prepare(
+    `INSERT INTO devices (parent_id, device_id, device_name, pairing_code, paired)
+     VALUES (?, ?, ?, ?, 0)`
+  ).run(req.parentId, deviceId, device_name || "جهاز جديد", pairingCode);
+
+  res.json({ pairing_code: pairingCode, device_id: deviceId });
+});
+
+router.post("/pair", (req, res) => {
+  const { pairing_code } = req.body;
+  const device = db
+    .prepare("SELECT * FROM devices WHERE pairing_code = ? AND paired = 0")
+    .get(pairing_code);
+
+  if (!device) {
+    return res.status(404).json({ error: "كود غير صالح أو منتهي" });
+  }
+
+  db.prepare("UPDATE devices SET paired = 1 WHERE id = ?").run(device.id);
+
+  res.json({ device_id: device.device_id, message: "تم الاقتران بنجاح" });
+});
+
+router.get("/my-devices", authMiddleware, (req, res) => {
+  const devices = db
+    .prepare("SELECT device_id, device_name, paired, created_at FROM devices WHERE parent_id = ?")
+    .all(req.parentId);
+  res.json({ devices });
+});
+
+module.exports = router;
+
+========================================
+FILE: server/routes/logs.js
+========================================
+const express = require("express");
+const { db, isFlagged } = require("../db/database");
+const { authMiddleware } = require("./auth");
+
+const router = express.Router();
+
+router.post("/log", (req, res) => {
+  const { device_id, app_package, url, timestamp } = req.body;
+
+  if (!device_id || !url || !timestamp) {
+    return res.status(400).json({ error: "بيانات ناقصة" });
+  }
+
+  const device = db
+    .prepare("SELECT * FROM devices WHERE device_id = ? AND paired = 1")
+    .get(device_id);
+
+  if (!device) {
+    return res.status(403).json({ error: "جهاز غير مُسجّل أو غير مرتبط" });
+  }
+
+  db.prepare(
+    `INSERT INTO browsing_logs (device_id, app_package, url, flagged, timestamp)
+     VALUES (?, ?, ?, ?, ?)`
+  ).run(device_id, app_package || "", url, isFlagged(url), timestamp);
+
+  res.status(201).json({ ok: true });
+});
+
+router.get("/device/:device_id", authMiddleware, (req, res) => {
+  const { device_id } = req.params;
+
+  const device = db
+    .prepare("SELECT * FROM devices WHERE device_id = ? AND parent_id = ?")
+    .get(device_id, req.parentId);
+
+  if (!device) {
+    return res.status(404).json({ error: "الجهاز غير موجود أو لا يخصك" });
+  }
+
+  const logs = db
+    .prepare(
+      `SELECT app_package, url, flagged, timestamp FROM browsing_logs
+       WHERE device_id = ? ORDER BY timestamp DESC LIMIT 200`
+    )
+    .all(device_id);
+
+  const summary = {
+    total_urls: logs.length,
+    flagged_count: logs.filter((l) => l.flagged).length,
+  };
+
+  res.json({ logs, summary });
+});
+
+module.exports = router;
+
+========================================
+FILE: server/routes/calls.js
+========================================
+const express = require("express");
+const { db } = require("../db/database");
+const { authMiddleware } = require("./auth");
+
+const router = express.Router();
+
+function isPaired(device_id) {
+  return db.prepare("SELECT * FROM devices WHERE device_id = ? AND paired = 1").get(device_id);
+}
+
+router.post("/calls/sync", (req, res) => {
+  const { device_id, calls } = req.body;
+
+  if (!device_id || !Array.isArray(calls)) {
+    return res.status(400).json({ error: "بيانات ناقصة" });
+  }
+  if (!isPaired(device_id)) {
+    return res.status(403).json({ error: "جهاز غير مُسجّل أو غير مرتبط" });
+  }
+
+  const insert = db.prepare(`
+    INSERT INTO call_logs (device_id, phone_number, contact_name, call_type, duration_seconds, timestamp)
+    VALUES (?, ?, ?, ?, ?, ?)
+  `);
+
+  const insertMany = db.transaction((rows) => {
+    for (const c of rows) {
+      insert.run(device_id, c.phone_number, c.contact_name || null, c.call_type || "unknown", c.duration_seconds || 0, c.timestamp);
+    }
+  });
+  insertMany(calls);
+
+  res.status(201).json({ inserted: calls.length });
+});
+
+router.get("/calls/device/:device_id", authMiddleware, (req, res) => {
+  const { device_id } = req.params;
+  const device = db.prepare("SELECT * FROM devices WHERE device_id = ? AND parent_id = ?").get(device_id, req.parentId);
+  if (!device) return res.status(404).json({ error: "الجهاز غير موجود أو لا يخصك" });
+
+  const calls = db.prepare(`
+    SELECT phone_number, contact_name, call_type, duration_seconds, timestamp
+    FROM call_logs WHERE device_id = ? ORDER BY timestamp DESC LIMIT 200
+  `).all(device_id);
+
+  res.json({ calls });
+});
+
+module.exports = router;
+
+========================================
+FILE: server/routes/usage.js
+========================================
+const express = require("express");
+const { db } = require("../db/database");
+const { authMiddleware } = require("./auth");
+
+const router = express.Router();
+
+function isPaired(device_id) {
+  return db.prepare("SELECT * FROM devices WHERE device_id = ? AND paired = 1").get(device_id);
+}
+
+router.post("/usage/sync", (req, res) => {
+  const { device_id, usage } = req.body;
+
+  if (!device_id || !Array.isArray(usage)) {
+    return res.status(400).json({ error: "بيانات ناقصة" });
+  }
+  if (!isPaired(device_id)) {
+    return res.status(403).json({ error: "جهاز غير مُسجّل أو غير مرتبط" });
+  }
+
+  const upsert = db.prepare(`
+    INSERT INTO app_usage (device_id, app_package, app_name, usage_minutes, usage_date)
+    VALUES (?, ?, ?, ?, ?)
+    ON CONFLICT(device_id, app_package, usage_date)
+    DO UPDATE SET usage_minutes = excluded.usage_minutes, app_name = excluded.app_name
+  `);
+
+  const upsertMany = db.transaction((rows) => {
+    for (const u of rows) {
+      upsert.run(device_id, u.app_package, u.app_name || u.app_package, u.usage_minutes || 0, u.usage_date);
+    }
+  });
+  upsertMany(usage);
+
+  const blocked = db.prepare("SELECT app_package FROM blocked_apps WHERE device_id = ?").all(device_id)
+    .map((r) => r.app_package);
+  const triggered = usage.filter((u) => blocked.includes(u.app_package) && u.usage_minutes > 0);
+
+  res.status(201).json({ synced: usage.length, blocked_app_alerts: triggered.map((t) => t.app_package) });
+});
+
+router.get("/usage/device/:device_id", authMiddleware, (req, res) => {
+  const { device_id } = req.params;
+  const date = req.query.date || new Date().toISOString().slice(0, 10);
+
+  const device = db.prepare("SELECT * FROM devices WHERE device_id = ? AND parent_id = ?").get(device_id, req.parentId);
+  if (!device) return res.status(404).json({ error: "الجهاز غير موجود أو لا يخصك" });
+
+  const usage = db.prepare(`
+    SELECT app_package, app_name, usage_minutes FROM app_usage
+    WHERE device_id = ? AND usage_date = ? ORDER BY usage_minutes DESC
+  `).all(device_id, date);
+
+  res.json({ date, usage, total_minutes: usage.reduce((s, u) => s + u.usage_minutes, 0) });
+});
+
+router.post("/usage/blocked/:device_id", authMiddleware, (req, res) => {
+  const { device_id } = req.params;
+  const { app_package, action } = req.body;
+
+  const device = db.prepare("SELECT * FROM devices WHERE device_id = ? AND parent_id = ?").get(device_id, req.parentId);
+  if (!device) return res.status(404).json({ error: "الجهاز غير موجود أو لا يخصك" });
+
+  if (action === "remove") {
+    db.prepare("DELETE FROM blocked_apps WHERE device_id = ? AND app_package = ?").run(device_id, app_package);
+  } else {
+    db.prepare("INSERT OR IGNORE INTO blocked_apps (device_id, app_package) VALUES (?, ?)").run(device_id, app_package);
+  }
+
+  res.json({ ok: true });
+});
+
+module.exports = router;
